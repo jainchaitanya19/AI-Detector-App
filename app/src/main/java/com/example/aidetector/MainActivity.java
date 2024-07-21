@@ -5,6 +5,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.widget.Button;
+import android.widget.ImageView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -15,9 +16,9 @@ import androidx.core.view.WindowInsetsCompat;
 
 public class MainActivity extends AppCompatActivity
 {
-
     Button btnPickImage;
     ActivityResultLauncher<Intent> resultLauncher;
+    ImageView imageView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -39,13 +40,18 @@ public class MainActivity extends AppCompatActivity
                     if (result.getResultCode() == RESULT_OK) {
                         // Get the image URI here if needed
                         Uri selectedImageUri = result.getData().getData();
+                        if (selectedImageUri != null) {
+                            Intent intent = new Intent(MainActivity.this, MainActivity2.class);
+                            intent.putExtra("image_uri", selectedImageUri.toString());
+                            startActivity(intent);
+                        }
                     }
                 });
 
         btnPickImage.setOnClickListener(v -> openGallery());
     }
 
-    private void openGallery()
+    public void openGallery()
     {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         resultLauncher.launch(intent);
