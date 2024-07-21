@@ -14,15 +14,13 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-public class MainActivity extends AppCompatActivity
-{
+public class MainActivity extends AppCompatActivity {
     Button btnPickImage;
     ActivityResultLauncher<Intent> resultLauncher;
     ImageView imageView;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState)
-    {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         btnPickImage = findViewById(R.id.button3);
@@ -51,8 +49,7 @@ public class MainActivity extends AppCompatActivity
         btnPickImage.setOnClickListener(v -> openGallery());
     }
 
-    public void openGallery()
-    {
+    public void openGallery() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         resultLauncher.launch(intent);
     }
