@@ -3,6 +3,8 @@ package com.example.aidetector;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.Base64;
+import android.util.Log;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -11,9 +13,11 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.util.Base64;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -22,6 +26,7 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class MainActivity2 extends AppCompatActivity {
+    private static final String TAG = "MainActivity2";
     ImageView imageView;
     TextView resultTextView;
 
@@ -53,6 +58,8 @@ public class MainActivity2 extends AppCompatActivity {
     private class UploadImageTask extends AsyncTask<Uri, Void, String> {
         @Override
         protected String doInBackground(Uri... uris) {
+            Log.d(TAG, "Task started");
+            Response response = null;
             try {
                 Uri imageUri = uris[0];
                 InputStream inputStream = getContentResolver().openInputStream(imageUri);
@@ -65,13 +72,18 @@ public class MainActivity2 extends AppCompatActivity {
                 }
 
                 byte[] imageBytes = byteArrayOutputStream.toByteArray();
-                String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
+                String encodedImage = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
 
                 OkHttpClient client = new OkHttpClient();
 
-                // Change the base URL to your Flask API URL
-                String baseUrl = "https://<ai-detector-430119>.appspot.com/predict";
-                String json = "{\"image\":\"" + encodedImage + "\"}";
+                // Change the URL depending on whether you are using an emulator or physical device
+                String baseUrl = "http://10.0.2.2:5000/predict"; // Emulator URL
+                // String baseUrl = "http://192.168.1.133:5000/predict"; // Physical device URL
+
+                String prefixedEncodedImage = "data:image/jpg;base64," + encodedImage;
+                String json = "{\"image\":\"" + prefixedEncodedImage + "\"}";
+
+                Log.d(TAG, "Request payload: " + json);
 
                 RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
                 Request request = new Request.Builder()
@@ -79,23 +91,40 @@ public class MainActivity2 extends AppCompatActivity {
                         .post(body)
                         .build();
 
-                Response response = client.newCall(request).execute();
+                response = client.newCall(request).execute();
                 if (response.isSuccessful()) {
+                    Log.d(TAG, "Upload successful");
                     return response.body().string();
                 } else {
+                    Log.d(TAG, "Upload failed with code: " + response.code());
                     return null;
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e(TAG, "Error during upload", e);
                 return null;
+            } finally {
+                if (response != null) {
+                    response.close();
+                }
+                Log.d(TAG, "Task completed");
             }
         }
 
         @Override
         protected void onPostExecute(String result) {
             if (result != null) {
-                // Parse the result and display it
-                resultTextView.setText(result);
+                try {
+                    // Parse the JSON response to extract the result field
+                    JSONObject jsonObject = new JSONObject(result);
+                    String resultText = jsonObject.getString("result");
+
+                    // Set the extracted result text to the TextView
+                    resultTextView.setText(resultText);
+                } catch (JSONException e) {
+                    // Handle JSON parsing error
+                    resultTextView.setText("Error parsing response");
+                    Log.e(TAG, "JSON parsing error", e);
+                }
             } else {
                 resultTextView.setText("Error occurred");
             }
