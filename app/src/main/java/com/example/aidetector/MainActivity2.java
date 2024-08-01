@@ -1,5 +1,6 @@
 package com.example.aidetector;
 
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -9,15 +10,15 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashSet;
+import java.util.Set;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -38,12 +39,6 @@ public class MainActivity2 extends AppCompatActivity {
         imageView = findViewById(R.id.imageView);
         resultTextView = findViewById(R.id.predictionTextView);
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
-
         // Get the image URI from the intent and set it to the ImageView
         String imageUriString = getIntent().getStringExtra("image_uri");
         if (imageUriString != null) {
@@ -52,6 +47,8 @@ public class MainActivity2 extends AppCompatActivity {
 
             // Send the image to the Flask API for prediction
             new UploadImageTask().execute(imageUri);
+        } else {
+            resultTextView.setText("No image URI provided");
         }
     }
 
@@ -63,8 +60,12 @@ public class MainActivity2 extends AppCompatActivity {
             try {
                 Uri imageUri = uris[0];
                 InputStream inputStream = getContentResolver().openInputStream(imageUri);
-                ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+                if (inputStream == null) {
+                    Log.e(TAG, "Failed to open InputStream");
+                    return null;
+                }
 
+                ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
                 byte[] buffer = new byte[1024];
                 int len;
                 while ((len = inputStream.read(buffer)) != -1) {
@@ -75,10 +76,7 @@ public class MainActivity2 extends AppCompatActivity {
                 String encodedImage = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
 
                 OkHttpClient client = new OkHttpClient();
-
-                // Change the URL depending on whether you are using an emulator or physical device
                 String baseUrl = "http://10.0.2.2:5000/predict"; // Emulator URL
-                // String baseUrl = "http://192.168.1.133:5000/predict"; // Physical device URL
 
                 String prefixedEncodedImage = "data:image/jpg;base64," + encodedImage;
                 String json = "{\"image\":\"" + prefixedEncodedImage + "\"}";
@@ -99,7 +97,7 @@ public class MainActivity2 extends AppCompatActivity {
                     Log.d(TAG, "Upload failed with code: " + response.code());
                     return null;
                 }
-            } catch (Exception e) {
+            } catch (IOException e) {
                 Log.e(TAG, "Error during upload", e);
                 return null;
             } finally {
@@ -114,20 +112,30 @@ public class MainActivity2 extends AppCompatActivity {
         protected void onPostExecute(String result) {
             if (result != null) {
                 try {
-                    // Parse the JSON response to extract the result field
                     JSONObject jsonObject = new JSONObject(result);
                     String resultText = jsonObject.getString("result");
-
-                    // Set the extracted result text to the TextView
                     resultTextView.setText(resultText);
+
+                    // Check if the image is fake and store it in history
+                    if ("Fake".equalsIgnoreCase(resultText)) {
+                        storeFakeImageUri(getIntent().getStringExtra("image_uri"));
+                    }
                 } catch (JSONException e) {
-                    // Handle JSON parsing error
                     resultTextView.setText("Error parsing response");
                     Log.e(TAG, "JSON parsing error", e);
                 }
             } else {
                 resultTextView.setText("Error occurred");
             }
+        }
+
+        private void storeFakeImageUri(String uri) {
+            SharedPreferences prefs = getSharedPreferences("FakeImageHistory", MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            Set<String> uris = prefs.getStringSet("fake_images", new HashSet<>());
+            uris.add(uri);
+            editor.putStringSet("fake_images", uris);
+            editor.apply();
         }
     }
 }
